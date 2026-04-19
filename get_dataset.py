@@ -80,15 +80,26 @@ for idx in tqdm(range(number_of_trajectories)):
     
     # calculate the actions
     trajectory = np.array(trajectory)
-    forward_actions = trajectory[1:-1, 0:9] - trajectory[:-2, 0:9]
-    reverse_actions = trajectory[1:-1, 0:9] - trajectory[2:, 0:9]
-    trajectory_actions1 = np.concatenate((trajectory[1:-1,:], forward_actions), axis=1)
-    trajectory_actions2 = np.concatenate((trajectory[1:-1,:], reverse_actions), axis=1)
-    dataset += trajectory_actions1.tolist() + trajectory_actions2.tolist()
+    forward_actions = trajectory[1:, 0:9] - trajectory[:-1, 0:9]
+    reverse_actions = trajectory[:-1, 0:9] - trajectory[1:, 0:9]
+    trajectory_actions1 = np.concatenate((trajectory[:-1,:], forward_actions), axis=1)
+    trajectory_actions2 = np.concatenate((trajectory[1:,:], reverse_actions), axis=1)
+
+    # Include stopped examples at both ends so the decoder has a trained
+    # "do not keep pushing past the demo" target near trajectory boundaries.
+    zero_action = np.zeros((1, 9))
+    trajectory_stop1 = np.concatenate((trajectory[-1:,:], zero_action), axis=1)
+    trajectory_stop2 = np.concatenate((trajectory[:1,:], zero_action), axis=1)
+    dataset += (
+        trajectory_actions1.tolist()
+        + trajectory_actions2.tolist()
+        + trajectory_stop1.tolist()
+        + trajectory_stop2.tolist()
+    )
 
     # actions = trajectory[1:, 0:9] - trajectory[:-1, 0:9] # actions = change in pos from this to next
     # trajectory_actions = np.concatenate((trajectory[1:,:], actions), axis=1) # Combine state and action into one array for training # Something like this
 
 # save the dataset of demonstrations
-pickle.dump(dataset, open("dataset_bidirectional_simple.pkl", "wb"))
+pickle.dump(dataset, open("dataset_bidirectional_simple_fixed.pkl", "wb"))
 print("dataset has this many state-action pairs:", len(dataset))

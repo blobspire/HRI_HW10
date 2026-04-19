@@ -11,6 +11,11 @@ import torch
 
 # parameters
 control_dt = 1. / 240.
+action_scale = 0.1
+latent_scale = 500.0
+test_position_gain = 0.1
+panda_lower_limits = np.array([-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973])
+panda_upper_limits = np.array([+2.8973, +1.7628, +2.8973, -0.0698, +2.8973, +3.7525, +2.8973])
 
 # create simulation and place camera
 physicsClient = p.connect(p.GUI)
@@ -38,7 +43,7 @@ panda = Panda(basePosition=[0, 0, 0],
 
 # load the trained model
 model = Autoencoder(state_dim=15, hidden_dim=256, action_dim=9, latent_dim=1)
-model.load_state_dict(torch.load('model_weights_bidirectional_simple'))
+model.load_state_dict(torch.load('model_weights_bidirectional_simple', map_location="cpu"))
 model.eval()
 
 # teleoperation interface
@@ -52,28 +57,35 @@ while True:
     robot_pos = np.array(robot_state["joint-position"])
 
     # get user input
-    action = teleop.get_action()
+    teleop_action = teleop.get_action()
 
     # open or close the gripper
-    if action[6] == +1:
+    if teleop_action[6] == +1:
         panda.open_gripper()
         gripper_state = [-1.0]
-    elif action[6] == -1:
+    elif teleop_action[6] == -1:
         panda.close_gripper()
         gripper_state = [+1.0]
 
     # exit current simulation
-    if action[7]:
+    if teleop_action[7]:
         break
 
     # get the full state
     state = robot_pos.tolist() + gripper_state + cylinder_position.tolist()
 
     # use the learned policy to output an action
-    action = 0.1 * model.decoder(torch.FloatTensor([state]), torch.FloatTensor([[500*action[0]]])).detach().numpy()[0]
-
+    latent_action = np.clip(latent_scale * teleop_action[0], -1.0, 1.0)
+    with torch.no_grad():
+        action = action_scale * model.decoder(
+            torch.FloatTensor([state]),
+            torch.FloatTensor([[latent_action]])
+        ).numpy()[0]
 
     # move the robot with action
-    panda.move_to_joint(robot_pos[0:9] + action)
+    target_positions = robot_pos[0:9] + action
+    target_positions[0:7] = np.clip(target_positions[0:7], panda_lower_limits, panda_upper_limits)
+    target_positions[7:9] = robot_pos[7:9]
+    panda.move_to_joint(target_positions, positionGain=test_position_gain)
     p.stepSimulation()
     time.sleep(control_dt)
