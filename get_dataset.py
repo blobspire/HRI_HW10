@@ -40,9 +40,10 @@ offset1 = np.array([0.0, 0.0, 0.2])      # reach above the cylinder
 offset2 = np.array([0.0, 0.0, 0.0])      # grab the cylinder
 offset3 = np.array([-0.3, 0.0, 0.1])     # bring it forward
 offset4 = np.array([0.3, 0.0, 0.1])      # bring it back
-offset = [offset1, offset2, offset3, offset4] # Robot will randomly choose 3 or 4
+# offset = [offset1, offset2, offset3, offset4] # Robot will randomly choose 3 or 4
 # offset = [offset1, offset2, offset3]
-timesteps = [401, 201, 401, 401]
+offset = [offset1, offset3, offset4]
+timesteps = [401, 401, 401]
 # timesteps = [401, 201, 401]
 dataset = []
 number_of_trajectories = 50 # Initial: 10
@@ -57,18 +58,18 @@ for idx in tqdm(range(number_of_trajectories)):
 
     # perform the expert behavior
     trajectory = []
-    for stage in range(3):
-        post_move = np.random.choice([2, 3]) # Decide to move end effector forward or back after picking up the cylinder
+    for stage in range(2):
+        post_move = np.random.choice([1, 2]) # Decide to move end effector forward or back
         for idx in range(1, timesteps[stage]):
             # close the gripper
-            if stage == 2 and idx == 1:
-                panda.close_gripper()
-                gripper_state = [+1.0]
-                for _ in range(100):
-                    p.stepSimulation()
-                    time.sleep(control_dt)
+            # if stage == 2 and idx == 1:
+            #     panda.close_gripper()
+            #     gripper_state = [+1.0]
+            #     for _ in range(100):
+            #         p.stepSimulation()
+            #         time.sleep(control_dt)
             # move to the goal position
-            panda.move_to_pose(cylinder_position + offset[post_move if stage == 2 else stage], 
+            panda.move_to_pose(cylinder_position + offset[post_move if stage == 1 else stage], 
                                 ee_quaternion=p.getQuaternionFromEuler([np.pi/2, np.pi/2, np.pi]), positionGain=0.01)
             p.stepSimulation()
             time.sleep(control_dt)
@@ -85,6 +86,9 @@ for idx in tqdm(range(number_of_trajectories)):
     trajectory_actions2 = np.concatenate((trajectory[1:-1,:], reverse_actions), axis=1)
     dataset += trajectory_actions1.tolist() + trajectory_actions2.tolist()
 
+    # actions = trajectory[1:, 0:9] - trajectory[:-1, 0:9] # actions = change in pos from this to next
+    # trajectory_actions = np.concatenate((trajectory[1:,:], actions), axis=1) # Combine state and action into one array for training # Something like this
+
 # save the dataset of demonstrations
-pickle.dump(dataset, open("dataset_bidirectional.pkl", "wb"))
+pickle.dump(dataset, open("dataset_bidirectional_simple.pkl", "wb"))
 print("dataset has this many state-action pairs:", len(dataset))
