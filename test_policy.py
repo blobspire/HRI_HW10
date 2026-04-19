@@ -37,8 +37,8 @@ panda = Panda(basePosition=[0, 0, 0],
                 jointStartPositions=jointStartPositions)
 
 # load the trained model
-model = Autoencoder(state_dim=15, hidden_dim=128, action_dim=9, latent_dim=1)
-model.load_state_dict(torch.load('model_weights'))
+model = Autoencoder(state_dim=15, hidden_dim=256, action_dim=9, latent_dim=1)
+model.load_state_dict(torch.load('model_weights_bidirectional_simple'))
 model.eval()
 
 # teleoperation interface
